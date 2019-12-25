@@ -46,7 +46,7 @@ SUBROUTINE Identity_Switch
    INTEGER :: im_j, lm_j
 
    !Variables for step 7
-   REAL(DP) :: E_vdw, E_qq, E_vdw_i, E_qq_i, E_vdw_j, E_qq_j
+   REAL(DP) :: E_vdw_i, E_qq_i, E_vdw_j, E_qq_j
    REAL(DP), DIMENSION(:), ALLOCATABLE :: box_nrg_vdw_temp, box_nrg_qq_temp
    LOGICAL :: inter_overlap
    INTEGER :: dum1, dum2, dum3, position_i, position_j
@@ -60,14 +60,14 @@ SUBROUTINE Identity_Switch
    REAL(DP), DIMENSION(:), ALLOCATABLE :: dx_xcom_j, dy_ycom_j, dz_zcom_j
 
    !Variables for step 10
-   REAL(DP) :: E_vdw_move, E_qq_move, E_vdw_move_i, E_qq_move_i, E_vdw_move_j, E_qq_move_j
+   REAL(DP) :: E_vdw_move_i, E_qq_move_i, E_vdw_move_j, E_qq_move_j
    REAL(DP) :: E_periodic_qq_i, E_periodic_qq_move_i, E_periodic_qq_j, E_periodic_qq_move_j
    REAL(DP) :: dE, dE_i, dE_j
    REAL(DP) :: E_bond_i, E_bond_j, E_angle_i, E_angle_j, E_dihed_i, E_dihed_j, E_improper_i, E_improper_j
    REAL(DP) :: E_intra_vdw_i, E_intra_qq_i, E_intra_vdw_j, E_intra_qq_j
    REAL(DP) :: dE_bond, dE_angle, dE_dihed, dE_improper, de_intra_vdw, dE_intra_qq
    REAL(DP) :: E_reciprocal_move, E_reciprocal_move_i, E_reciprocal_move_j
-   REAL(DP) :: E_lrc, E_lrc_i, E_lrc_j
+   REAL(DP) :: E_lrc_i, E_lrc_j
    REAL(DP) :: dE_lrc, dE_lrc_i, dE_lrc_j
    REAL(DP), ALLOCATABLE :: cos_mol_old_i(:), sin_mol_old_i(:), cos_mol_old_j(:), sin_mol_old_j(:)
    REAL(DP), DIMENSION(:,:), ALLOCATABLE, TARGET :: cos_sum_old_idsw, sin_sum_old_idsw
@@ -83,10 +83,6 @@ SUBROUTINE Identity_Switch
    REAL(DP) :: P_bias
    INTEGER :: im_in, jm_in
 
-   E_vdw_move = 0.0_DP
-   E_qq_move = 0.0_DP
-   E_vdw = 0.0_DP
-   E_qq = 0.0_DP
    E_reciprocal_move = 0.0_DP
    inter_overlap = .FALSE.
    accept = .FALSE.
@@ -206,10 +202,6 @@ SUBROUTINE Identity_Switch
 
    lm_j = locate(im_j, js, box_j)
 
-   write(*,*) '***SUMMARY***'
-   write(*,*) lm_i, box_i
-   write(*,*) lm_j, box_j
-   write(*,*) '***END SUMMARY***'
    !*****************************************************************************
    ! Step 7) Calculate initial energies of each box
    !
@@ -222,7 +214,6 @@ SUBROUTINE Identity_Switch
 
    CALL Compute_System_Total_Energy(1,.FALSE.,inter_overlap)
    CALL Compute_System_Total_Energy(2,.FALSE.,inter_overlap)
-   write(*,*) 'initial ',energy(1)%inter_vdw, energy(2)%inter_vdw
    !Same box
    IF (box_i .EQ. box_j) THEN
 
@@ -233,7 +224,8 @@ SUBROUTINE Identity_Switch
                  E_qq_dum, 2, (/lm_i, lm_j/), (/is, js/), (/box_i, box_j/), &
                  box_nrg_vdw_temp, box_nrg_qq_temp)
 
-         E_vdw = box_nrg_vdw_temp(1)
+         E_vdw_i = box_nrg_vdw_temp(1)
+         E_vdw_j = 0.0
  !        E_qq = box_nrg_qq_temp(1)
 
          ! remove double counting from vdw and qq energies
@@ -244,7 +236,8 @@ SUBROUTINE Identity_Switch
 
          ! substract off the energy 
 
-         E_vdw = E_vdw - pair_nrg_vdw(position_i,position_j)
+         E_vdw_i = E_vdw_i - pair_nrg_vdw(position_i,position_j)
+         
 !         E_qq = E_qq - pair_nrg_qq(position_i,position_j)
 
          DEALLOCATE(box_nrg_vdw_temp, box_nrg_qq_temp)
@@ -411,7 +404,6 @@ SUBROUTINE Identity_Switch
 
    CALL Compute_System_Total_Energy(1,.FALSE.,inter_overlap)
    CALL Compute_System_Total_Energy(2,.FALSE.,inter_overlap)
-   write(*,*) 'final', energy(1)%inter_vdw, energy(2)%inter_vdw
   !*****************************************************************************
   ! Step 9) Rotate the molecules if desired
   !
@@ -434,7 +426,9 @@ SUBROUTINE Identity_Switch
 !   IF ( .NOT. rot_overlap_i .AND. .NOT. rot_overlap_j) THEN
       IF (box_i .EQ. box_j) THEN
          CALL Compute_MoleculeCollection_Nonbond_Inter_Energy(2, (/lm_i, lm_j/), (/is, js/), &
-            E_vdw_move, E_qq_move, inter_overlap)
+            E_vdw_move_i, E_qq_move_i, inter_overlap) 
+       E_vdw_move_j = 0.0
+       E_qq_move_j = 0.0
       ELSE
          CALL Compute_Molecule_Nonbond_Inter_Energy(lm_i,is,E_vdw_move_i,E_qq_move_i,inter_overlap)
          IF (.NOT. inter_overlap) THEN
@@ -539,10 +533,10 @@ SUBROUTINE Identity_Switch
       IF (box_i .EQ. box_j) THEN
 
          IF (int_vdw_sum_style(box_i) == vdw_cut_tail) THEN
-            CALL Compute_LR_correction(box_i,E_lrc)
-            dE_lrc = E_lrc - energy(box_i)%lrc
+            CALL Compute_LR_correction(box_i,E_lrc_i)
+            dE_lrc = E_lrc_i - energy(box_i)%lrc
          END IF
-
+         E_lrc_j = 0.0
       ELSE
 
          IF (int_vdw_sum_style(box_i) == vdw_cut_tail) THEN
@@ -559,10 +553,10 @@ SUBROUTINE Identity_Switch
 
       !Compute difference with nonbonded energies only
      IF (box_i .EQ. box_j) THEN
-         dE = dE + (E_vdw_move - E_vdw) !+ (E_qq_move - E_qq)
+         dE = dE + (E_vdw_move_i - E_vdw_i) !+ (E_qq_move - E_qq)
 
 !         dE = dE + (E_periodic_qq_move_j - E_periodic_qq_j) + (E_periodic_qq_move_i - E_periodic_qq_i)
-         dE = dE + dE_lrc
+         dE = dE + dE_lrc_i
 !         IF (int_sim_type == sim_nvt_min) THEN
 !            IF (dE  <= 0.0_DP) THEN
 !               accept = .TRUE.
@@ -591,7 +585,6 @@ SUBROUTINE Identity_Switch
             accept = accept_or_reject(ln_pacc)
 !         END IF
       END IF
-      accept = .true.
       IF (accept) THEN
   
          nsuccess(is,box_i)%switch = nsuccess(is,box_i)%switch + 1
@@ -600,9 +593,9 @@ SUBROUTINE Identity_Switch
          IF (box_i .EQ. box_j) THEN
             energy(box_i)%total = energy(box_i)%total + dE
             energy(box_i)%inter = energy(box_i)%inter + dE
-            energy(box_i)%inter_vdw = energy(box_i)%inter_vdw + E_vdw_move - E_vdw
-            energy(box_i)%inter_q   = energy(box_i)%inter_q   + E_qq_move  - E_qq
-            energy(box_i)%lrc = E_lrc
+            energy(box_i)%inter_vdw = energy(box_i)%inter_vdw + E_vdw_move_i - E_vdw_i
+            energy(box_i)%inter_q   = energy(box_i)%inter_q   + E_qq_move_i  - E_qq_i
+            energy(box_i)%lrc = E_lrc_i
 
 !            IF(int_charge_sum_style(box_i) == charge_ewald .AND. (has_charge(is) .OR. has_charge(js))) THEN
 !               energy(box_i)%reciprocal = E_reciprocal_move
@@ -626,7 +619,7 @@ SUBROUTINE Identity_Switch
 
             energy(box_j)%total = energy(box_j)%total + dE_j
             energy(box_j)%inter = energy(box_j)%inter + dE_j
-            energy(box_j)%inter_vdw = energy(box_j)%inter_vdw + E_vdw_move_j - E_vdw
+            energy(box_j)%inter_vdw = energy(box_j)%inter_vdw + E_vdw_move_j - E_vdw_j
             energy(box_j)%inter_q = energy(box_j)%inter_q + E_qq_move_j - E_qq_j
             !Intra energies are not needed for the acceptance rule, but they must be attributed to the correct box now
             energy(box_j)%intra = energy(box_j)%intra - dE_bond - dE_angle - dE_dihed - dE_improper
@@ -878,5 +871,6 @@ SUBROUTINE Identity_Switch
 !      P_bias = P_bias_rev / P_bias
 !    END SUBROUTINE Bias_Rotate
 !
+
 END SUBROUTINE Identity_Switch
 
