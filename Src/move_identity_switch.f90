@@ -212,8 +212,6 @@ SUBROUTINE Identity_Switch
    ntrials(is,box_i)%switch = ntrials(is,box_i)%switch + 1
    ntrials(js,box_j)%switch = ntrials(js,box_j)%switch + 1
 
-   CALL Compute_System_Total_Energy(1,.FALSE.,inter_overlap)
-   CALL Compute_System_Total_Energy(2,.FALSE.,inter_overlap)
    !Same box
    IF (box_i .EQ. box_j) THEN
 
@@ -402,8 +400,6 @@ SUBROUTINE Identity_Switch
    CALL Fold_Molecule(lm_i,is,box_j)
    CALL Fold_Molecule(lm_j,js,box_i)
 
-   CALL Compute_System_Total_Energy(1,.FALSE.,inter_overlap)
-   CALL Compute_System_Total_Energy(2,.FALSE.,inter_overlap)
   !*****************************************************************************
   ! Step 9) Rotate the molecules if desired
   !
