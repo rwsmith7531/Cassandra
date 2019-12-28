@@ -608,7 +608,6 @@ SUBROUTINE Identity_Switch
 !         END IF
       END IF
 
-      write(*,*) accept
       IF (accept) THEN
   
          nsuccess(is,box_i)%switch = nsuccess(is,box_i)%switch + 1
