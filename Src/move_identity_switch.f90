@@ -71,7 +71,7 @@ SUBROUTINE Identity_Switch
    REAL(DP) :: dE_lrc, dE_lrc_i, dE_lrc_j
    REAL(DP), ALLOCATABLE :: cos_mol_old_i(:), sin_mol_old_i(:), cos_mol_old_j(:), sin_mol_old_j(:)
    REAL(DP), DIMENSION(:,:), ALLOCATABLE, TARGET :: cos_sum_old_idsw, sin_sum_old_idsw
-
+   INTEGER, DIMENSION(:), ALLOCATABLE :: lm_list, is_list, boxes_list
 
    !acceptance variables
    REAL(DP) :: ln_pacc, success_ratio_i, success_ratio_j
@@ -82,6 +82,16 @@ SUBROUTINE Identity_Switch
    LOGICAL :: rot_overlap_i, rot_overlap_j
    REAL(DP) :: P_bias
    INTEGER :: im_in, jm_in
+
+   E_qq_i = 0.0_DP
+   E_qq_j = 0.0_DP
+  
+   ALLOCATE(lm_list(2), is_list(2), Stat = AllocateStatus )
+   IF (AllocateStatus /= 0 ) THEN
+      write(*,*)'memory could not be allocated for identity switch molecule ID arrays'
+      write(*,*)'stopping'
+      STOP
+   END IF
 
    E_reciprocal_move = 0.0_DP
    inter_overlap = .FALSE.
@@ -140,6 +150,9 @@ SUBROUTINE Identity_Switch
       END IF
    END IF
 
+   is_list(1) = is
+   is_list(2) = js
+
    !*****************************************************************************
    ! Step 3 and 4) Select a box for species i and a box for species j
    !*****************************************************************************
@@ -182,6 +195,15 @@ SUBROUTINE Identity_Switch
 
    END IF
 
+   ALLOCATE(boxes_list(2), Stat = AllocateStatus )
+   IF (AllocateStatus /= 0 ) THEN
+      write(*,*)'memory could not be allocated for box ID arrays'
+      write(*,*)'stopping'
+      STOP
+   END IF
+   boxes_list(1) = box_i
+   boxes_list(2) = box_j
+
    !*****************************************************************************
    ! Step 5) Select a molecule 'alive' from species 'is' with uniform probability
    !*****************************************************************************
@@ -202,6 +224,8 @@ SUBROUTINE Identity_Switch
 
    lm_j = locate(im_j, js, box_j)
 
+   lm_list(1) = lm_i
+   lm_list(2) = lm_j
    !*****************************************************************************
    ! Step 7) Calculate initial energies of each box
    !
@@ -218,8 +242,9 @@ SUBROUTINE Identity_Switch
       IF (l_pair_nrg) THEN
 
          ALLOCATE(box_nrg_vdw_temp(2), box_nrg_qq_temp(2))
+
          CALL Store_Molecule_Pair_Interaction_Arrays(dum1, dum2, dum3, E_vdw_dum, &
-                 E_qq_dum, 2, (/lm_i, lm_j/), (/is, js/), (/box_i, box_j/), &
+                 E_qq_dum, 2, lm_list, is_list, boxes_list, &
                  box_nrg_vdw_temp, box_nrg_qq_temp)
 
          E_vdw_i = box_nrg_vdw_temp(1)
@@ -421,7 +446,8 @@ SUBROUTINE Identity_Switch
   !*****************************************************************************
 !   IF ( .NOT. rot_overlap_i .AND. .NOT. rot_overlap_j) THEN
       IF (box_i .EQ. box_j) THEN
-         CALL Compute_MoleculeCollection_Nonbond_Inter_Energy(2, (/lm_i, lm_j/), (/is, js/), &
+
+         CALL Compute_MoleculeCollection_Nonbond_Inter_Energy(2, lm_list, is_list, &
             E_vdw_move_i, E_qq_move_i, inter_overlap) 
        E_vdw_move_j = 0.0
        E_qq_move_j = 0.0
@@ -530,7 +556,7 @@ SUBROUTINE Identity_Switch
 
          IF (int_vdw_sum_style(box_i) == vdw_cut_tail) THEN
             CALL Compute_LR_correction(box_i,E_lrc_i)
-            dE_lrc = E_lrc_i - energy(box_i)%lrc
+            dE_lrc_i = E_lrc_i - energy(box_i)%lrc
          END IF
          E_lrc_j = 0.0
       ELSE
@@ -581,6 +607,8 @@ SUBROUTINE Identity_Switch
             accept = accept_or_reject(ln_pacc)
 !         END IF
       END IF
+
+      write(*,*) accept
       IF (accept) THEN
   
          nsuccess(is,box_i)%switch = nsuccess(is,box_i)%switch + 1
@@ -684,6 +712,7 @@ SUBROUTINE Identity_Switch
       END IF
 
 !   ENDIF
+   DEALLOCATE(lm_list, is_list, boxes_list)
 
    CONTAINS
    !**************************************************************************
