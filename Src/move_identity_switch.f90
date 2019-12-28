@@ -72,6 +72,7 @@ SUBROUTINE Identity_Switch
    REAL(DP), ALLOCATABLE :: cos_mol_old_i(:), sin_mol_old_i(:), cos_mol_old_j(:), sin_mol_old_j(:)
    REAL(DP), DIMENSION(:,:), ALLOCATABLE, TARGET :: cos_sum_old_idsw, sin_sum_old_idsw
    INTEGER, DIMENSION(:), ALLOCATABLE :: lm_list, is_list, boxes_list
+   REAL(DP), ALLOCATABLE, DIMENSION(:) :: E_vdw_box_old, E_vdw_box_new
 
    !acceptance variables
    REAL(DP) :: ln_pacc, success_ratio_i, success_ratio_j
@@ -188,12 +189,29 @@ SUBROUTINE Identity_Switch
          IF ( randno <= x_box_j(box_j)) EXIT
       END DO
 
+      ALLOCATE(E_vdw_box_old(2), E_vdw_box_new(2), Stat=AllocateStatus)
+      IF (AllocateStatus /= 0 ) THEN
+         write(*,*)'memory could not be allocated for Energy VDW box arrays.'
+         write(*,*)'stopping'
+         STOP
+      END IF
+
    ELSE
 
       box_i = 1
       box_j = 1
 
+      ALLOCATE(E_vdw_box_old(1), E_vdw_box_new(1), Stat=AllocateStatus)
+      IF (AllocateStatus /= 0 ) THEN
+         write(*,*)'memory could not be allocated for Energy VDW box arrays.'
+         write(*,*)'stopping'
+         STOP
+      END IF
+
    END IF
+
+   E_vdw_box_old = 0.0_DP
+   E_vdw_box_new = 0.0_DP
 
    ALLOCATE(boxes_list(2), Stat = AllocateStatus )
    IF (AllocateStatus /= 0 ) THEN
@@ -247,8 +265,7 @@ SUBROUTINE Identity_Switch
                  E_qq_dum, 2, lm_list, is_list, boxes_list, &
                  box_nrg_vdw_temp, box_nrg_qq_temp)
 
-         E_vdw_i = box_nrg_vdw_temp(1)
-         E_vdw_j = 0.0
+         E_vdw_box_old(1) = box_nrg_vdw_temp(1)
  !        E_qq = box_nrg_qq_temp(1)
 
          ! remove double counting from vdw and qq energies
@@ -259,7 +276,7 @@ SUBROUTINE Identity_Switch
 
          ! substract off the energy 
 
-         E_vdw_i = E_vdw_i - pair_nrg_vdw(position_i,position_j)
+         E_vdw_box_old(1) = E_vdw_box_old(1) - pair_nrg_vdw(position_i,position_j)
          
 !         E_qq = E_qq - pair_nrg_qq(position_i,position_j)
 
@@ -280,8 +297,8 @@ SUBROUTINE Identity_Switch
          ALLOCATE(box_nrg_vdw_temp(2), box_nrg_qq_temp(2))
          CALL Store_Molecule_Pair_Interaction_Arrays(dum1, dum2, dum3, E_vdw_dum, E_qq_dum, 2, &
             (/lm_i, lm_j/), (/is, js/), (/box_i, box_j/), box_nrg_vdw_temp, box_nrg_qq_temp)
-         E_vdw_i = box_nrg_vdw_temp(1)
-         E_vdw_j = box_nrg_vdw_temp(2)
+         E_vdw_box_old(1) = box_nrg_vdw_temp(1)
+         E_vdw_box_old(2) = box_nrg_vdw_temp(2)
 !         E_qq_i = box_nrg_qq_temp(1)
 !         E_qq_j = box_nrg_qq_temp(2)
          DEALLOCATE(box_nrg_vdw_temp, box_nrg_qq_temp)
@@ -387,10 +404,6 @@ SUBROUTINE Identity_Switch
 
    locate(nmols(is,box_i),is,box_i) = 0
 
-   ! Delete j's locate in box_j
-!   write(*,*) locate(:, js, box_j)
-!   write(*,*) '******'
-
    IF (im_j < nmols(js,box_j)) THEN
       DO k = im_j + 1, nmols(js,box_j)
          locate(k-1,js,box_j) = locate(k,js,box_j)
@@ -398,8 +411,6 @@ SUBROUTINE Identity_Switch
    END IF
 
    locate(nmols(js,box_j),js,box_j) = 0
-!   write(*,*) locate(:, js, box_j)
-!   write(*,*) '******'
 
    !Update number of molecules
    nmols(is,box_i) = nmols(is,box_i) - 1
@@ -415,10 +426,6 @@ SUBROUTINE Identity_Switch
    im_j = nmols(js, box_i)
    locate(im_j,js,box_i) = lm_j
 
-!   write(*,*) locate(:, is, box_j)
-!   write(*,*) '******'
-!   write(*,*) locate(:, js, box_i)
-!   write(*,*) '******'
    ! Wrap coordinates
    ! TODO: this might need moved to the previous section
 
@@ -448,13 +455,13 @@ SUBROUTINE Identity_Switch
       IF (box_i .EQ. box_j) THEN
 
          CALL Compute_MoleculeCollection_Nonbond_Inter_Energy(2, lm_list, is_list, &
-            E_vdw_move_i, E_qq_move_i, inter_overlap) 
-       E_vdw_move_j = 0.0
+            E_vdw_box_new(1), E_qq_move_i, inter_overlap) 
        E_qq_move_j = 0.0
+
       ELSE
-         CALL Compute_Molecule_Nonbond_Inter_Energy(lm_i,is,E_vdw_move_i,E_qq_move_i,inter_overlap)
+         CALL Compute_Molecule_Nonbond_Inter_Energy(lm_i,is,E_vdw_box_new(1),E_qq_move_i,inter_overlap)
          IF (.NOT. inter_overlap) THEN
-            CALL Compute_Molecule_Nonbond_Inter_Energy(lm_j,js,E_vdw_move_j,E_qq_move_j,inter_overlap)
+            CALL Compute_Molecule_Nonbond_Inter_Energy(lm_j,js,E_vdw_box_new(2),E_qq_move_j,inter_overlap)
          END IF
       END IF
 !   END IF
@@ -575,7 +582,7 @@ SUBROUTINE Identity_Switch
 
       !Compute difference with nonbonded energies only
      IF (box_i .EQ. box_j) THEN
-         dE = dE + (E_vdw_move_i - E_vdw_i) !+ (E_qq_move - E_qq)
+         dE = dE + (E_vdw_box_new(1) - E_vdw_box_old(1)) !+ (E_qq_move - E_qq)
 
 !         dE = dE + (E_periodic_qq_move_j - E_periodic_qq_j) + (E_periodic_qq_move_i - E_periodic_qq_i)
          dE = dE + dE_lrc_i
