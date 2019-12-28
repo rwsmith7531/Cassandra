@@ -72,7 +72,7 @@ SUBROUTINE Identity_Switch
    REAL(DP), ALLOCATABLE :: cos_mol_old_i(:), sin_mol_old_i(:), cos_mol_old_j(:), sin_mol_old_j(:)
    REAL(DP), DIMENSION(:,:), ALLOCATABLE, TARGET :: cos_sum_old_idsw, sin_sum_old_idsw
    INTEGER, DIMENSION(:), ALLOCATABLE :: lm_list, is_list, boxes_list
-   REAL(DP), ALLOCATABLE, DIMENSION(:) :: E_vdw_box_old, E_vdw_box_new
+   REAL(DP), ALLOCATABLE, DIMENSION(:) :: E_vdw_box_old, E_vdw_box_new, E_qq_box_old, E_qq_box_new
 
    !acceptance variables
    REAL(DP) :: ln_pacc, success_ratio_i, success_ratio_j
@@ -83,16 +83,34 @@ SUBROUTINE Identity_Switch
    LOGICAL :: rot_overlap_i, rot_overlap_j
    REAL(DP) :: P_bias
    INTEGER :: im_in, jm_in
-
-   E_qq_i = 0.0_DP
-   E_qq_j = 0.0_DP
-  
+ 
    ALLOCATE(lm_list(2), is_list(2), Stat = AllocateStatus )
    IF (AllocateStatus /= 0 ) THEN
       write(*,*)'memory could not be allocated for identity switch molecule ID arrays'
       write(*,*)'stopping'
       STOP
    END IF
+
+   ALLOCATE(E_vdw_box_old(2), E_vdw_box_new(2), E_qq_box_old(2), E_qq_box_new(2), Stat=AllocateStatus)
+   IF (AllocateStatus /= 0 ) THEN
+      write(*,*)'memory could not be allocated for Energy VDW or QQ box arrays.'
+      write(*,*)'stopping'
+      STOP
+   END IF
+   E_vdw_box_old = 0.0_DP
+   E_qq_box_old = 0.0_DP
+   E_vdw_box_new = 0.0_DP
+   E_qq_box_new = 0.0_DP
+
+   ALLOCATE(boxes_list(2), Stat = AllocateStatus )
+   IF (AllocateStatus /= 0 ) THEN
+      write(*,*)'memory could not be allocated for box ID arrays'
+      write(*,*)'stopping'
+      STOP
+   END IF
+
+   E_qq_i = 0.0_DP
+   E_qq_j = 0.0_DP
 
    E_reciprocal_move = 0.0_DP
    inter_overlap = .FALSE.
@@ -189,36 +207,13 @@ SUBROUTINE Identity_Switch
          IF ( randno <= x_box_j(box_j)) EXIT
       END DO
 
-      ALLOCATE(E_vdw_box_old(2), E_vdw_box_new(2), Stat=AllocateStatus)
-      IF (AllocateStatus /= 0 ) THEN
-         write(*,*)'memory could not be allocated for Energy VDW box arrays.'
-         write(*,*)'stopping'
-         STOP
-      END IF
-
    ELSE
 
       box_i = 1
       box_j = 1
 
-      ALLOCATE(E_vdw_box_old(1), E_vdw_box_new(1), Stat=AllocateStatus)
-      IF (AllocateStatus /= 0 ) THEN
-         write(*,*)'memory could not be allocated for Energy VDW box arrays.'
-         write(*,*)'stopping'
-         STOP
-      END IF
-
    END IF
 
-   E_vdw_box_old = 0.0_DP
-   E_vdw_box_new = 0.0_DP
-
-   ALLOCATE(boxes_list(2), Stat = AllocateStatus )
-   IF (AllocateStatus /= 0 ) THEN
-      write(*,*)'memory could not be allocated for box ID arrays'
-      write(*,*)'stopping'
-      STOP
-   END IF
    boxes_list(1) = box_i
    boxes_list(2) = box_j
 
@@ -259,14 +254,9 @@ SUBROUTINE Identity_Switch
 
       IF (l_pair_nrg) THEN
 
-         ALLOCATE(box_nrg_vdw_temp(2), box_nrg_qq_temp(2))
-
          CALL Store_Molecule_Pair_Interaction_Arrays(dum1, dum2, dum3, E_vdw_dum, &
                  E_qq_dum, 2, lm_list, is_list, boxes_list, &
-                 box_nrg_vdw_temp, box_nrg_qq_temp)
-
-         E_vdw_box_old(1) = box_nrg_vdw_temp(1)
- !        E_qq = box_nrg_qq_temp(1)
+                 E_vdw_box_old, E_qq_box_old) 
 
          ! remove double counting from vdw and qq energies
          ! obtain the position of these molecules to reference vdw and qq pair energy arrays
@@ -276,11 +266,9 @@ SUBROUTINE Identity_Switch
 
          ! substract off the energy 
 
-         E_vdw_box_old(1) = E_vdw_box_old(1) - pair_nrg_vdw(position_i,position_j)
+         E_vdw_box_old(box_i) = E_vdw_box_old(box_i) - pair_nrg_vdw(position_i,position_j)
          
-!         E_qq = E_qq - pair_nrg_qq(position_i,position_j)
-
-         DEALLOCATE(box_nrg_vdw_temp, box_nrg_qq_temp)
+         E_qq_box_old(box_i) = E_qq_box_old(box_i) - pair_nrg_qq(position_i,position_j)
 
 !      ELSE
 !         CALL Compute_MoleculeCollection_Nonbond_Inter_Energy(2, (/lm_i, lm_j/), (/is, js/), &
@@ -455,8 +443,7 @@ SUBROUTINE Identity_Switch
       IF (box_i .EQ. box_j) THEN
 
          CALL Compute_MoleculeCollection_Nonbond_Inter_Energy(2, lm_list, is_list, &
-            E_vdw_box_new(1), E_qq_move_i, inter_overlap) 
-       E_qq_move_j = 0.0
+            E_vdw_box_new(box_i), E_qq_box_new(box_i), inter_overlap) 
 
       ELSE
          CALL Compute_Molecule_Nonbond_Inter_Energy(lm_i,is,E_vdw_box_new(1),E_qq_move_i,inter_overlap)
@@ -582,7 +569,7 @@ SUBROUTINE Identity_Switch
 
       !Compute difference with nonbonded energies only
      IF (box_i .EQ. box_j) THEN
-         dE = dE + (E_vdw_box_new(1) - E_vdw_box_old(1)) !+ (E_qq_move - E_qq)
+         dE = dE + (E_vdw_box_new(box_i) - E_vdw_box_old(box_i)) + (E_qq_box_new(box_i) - E_qq_box_old(box_i))
 
 !         dE = dE + (E_periodic_qq_move_j - E_periodic_qq_j) + (E_periodic_qq_move_i - E_periodic_qq_i)
          dE = dE + dE_lrc_i
@@ -623,8 +610,8 @@ SUBROUTINE Identity_Switch
          IF (box_i .EQ. box_j) THEN
             energy(box_i)%total = energy(box_i)%total + dE
             energy(box_i)%inter = energy(box_i)%inter + dE
-            energy(box_i)%inter_vdw = energy(box_i)%inter_vdw + E_vdw_move_i - E_vdw_i
-            energy(box_i)%inter_q   = energy(box_i)%inter_q   + E_qq_move_i  - E_qq_i
+            energy(box_i)%inter_vdw = energy(box_i)%inter_vdw + E_vdw_box_new(box_i) - E_vdw_box_old(box_i)
+            energy(box_i)%inter_q   = energy(box_i)%inter_q   + E_qq_box_new(box_i) - E_qq_box_old(box_i)
             energy(box_i)%lrc = E_lrc_i
 
 !            IF(int_charge_sum_style(box_i) == charge_ewald .AND. (has_charge(is) .OR. has_charge(js))) THEN
@@ -718,6 +705,8 @@ SUBROUTINE Identity_Switch
       END IF
 
 !   ENDIF
+      
+   DEALLOCATE(E_vdw_box_old, E_vdw_box_new, E_qq_box_old, E_qq_box_new)
    DEALLOCATE(lm_list, is_list, boxes_list)
 
    CONTAINS
