@@ -266,10 +266,9 @@ SUBROUTINE Identity_Switch
 
          ! substract off the energy 
 
-         E_vdw_box_old(box_i) = E_vdw_box_old(box_i) - pair_nrg_vdw(position_i,position_j)
+         E_vdw_box_old(1) = E_vdw_box_old(1) - pair_nrg_vdw(position_i,position_j)
          
-         E_qq_box_old(box_i) = E_qq_box_old(box_i) - pair_nrg_qq(position_i,position_j)
-
+         E_qq_box_old(1) = E_qq_box_old(1) - pair_nrg_qq(position_i,position_j)
 !      ELSE
 !         CALL Compute_MoleculeCollection_Nonbond_Inter_Energy(2, (/lm_i, lm_j/), (/is, js/), &
 !            E_vdw, E_qq, inter_overlap)
@@ -443,7 +442,7 @@ SUBROUTINE Identity_Switch
       IF (box_i .EQ. box_j) THEN
 
          CALL Compute_MoleculeCollection_Nonbond_Inter_Energy(2, lm_list, is_list, &
-            E_vdw_box_new(box_i), E_qq_box_new(box_i), inter_overlap) 
+            E_vdw_box_new(1), E_qq_box_new(1), inter_overlap) 
 
       ELSE
          CALL Compute_Molecule_Nonbond_Inter_Energy(lm_i,is,E_vdw_box_new(1),E_qq_move_i,inter_overlap)
@@ -569,7 +568,7 @@ SUBROUTINE Identity_Switch
 
       !Compute difference with nonbonded energies only
      IF (box_i .EQ. box_j) THEN
-         dE = dE + (E_vdw_box_new(box_i) - E_vdw_box_old(box_i)) + (E_qq_box_new(box_i) - E_qq_box_old(box_i))
+         dE = dE + (E_vdw_box_new(1) - E_vdw_box_old(1)) + (E_qq_box_new(1) - E_qq_box_old(1))
 
 !         dE = dE + (E_periodic_qq_move_j - E_periodic_qq_j) + (E_periodic_qq_move_i - E_periodic_qq_i)
          dE = dE + dE_lrc_i
@@ -610,8 +609,8 @@ SUBROUTINE Identity_Switch
          IF (box_i .EQ. box_j) THEN
             energy(box_i)%total = energy(box_i)%total + dE
             energy(box_i)%inter = energy(box_i)%inter + dE
-            energy(box_i)%inter_vdw = energy(box_i)%inter_vdw + E_vdw_box_new(box_i) - E_vdw_box_old(box_i)
-            energy(box_i)%inter_q   = energy(box_i)%inter_q   + E_qq_box_new(box_i) - E_qq_box_old(box_i)
+            energy(box_i)%inter_vdw = energy(box_i)%inter_vdw + E_vdw_box_new(1) - E_vdw_box_old(1)
+            energy(box_i)%inter_q   = energy(box_i)%inter_q   + E_qq_box_new(1) - E_qq_box_old(1)
             energy(box_i)%lrc = E_lrc_i
 
 !            IF(int_charge_sum_style(box_i) == charge_ewald .AND. (has_charge(is) .OR. has_charge(js))) THEN
