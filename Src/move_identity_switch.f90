@@ -281,14 +281,10 @@ SUBROUTINE Identity_Switch
       ! Not in the same box
 
       IF (l_pair_nrg) THEN
-         ALLOCATE(box_nrg_vdw_temp(2), box_nrg_qq_temp(2))
+
          CALL Store_Molecule_Pair_Interaction_Arrays(dum1, dum2, dum3, E_vdw_dum, E_qq_dum, 2, &
-            (/lm_i, lm_j/), (/is, js/), (/box_i, box_j/), box_nrg_vdw_temp, box_nrg_qq_temp)
-         E_vdw_box_old(1) = box_nrg_vdw_temp(1)
-         E_vdw_box_old(2) = box_nrg_vdw_temp(2)
-!         E_qq_i = box_nrg_qq_temp(1)
-!         E_qq_j = box_nrg_qq_temp(2)
-         DEALLOCATE(box_nrg_vdw_temp, box_nrg_qq_temp)
+            lm_list, is_list, boxes_list, E_vdw_box_old, E_qq_box_old)
+
 !      ELSE
 !         CALL Compute_Molecule_Nonbond_Inter_Energy(lm_i,is,E_vdw_i,E_qq_i,inter_overlap)
 !         IF (inter_overlap) THEN
@@ -445,9 +441,9 @@ SUBROUTINE Identity_Switch
             E_vdw_box_new(1), E_qq_box_new(1), inter_overlap) 
 
       ELSE
-         CALL Compute_Molecule_Nonbond_Inter_Energy(lm_i,is,E_vdw_box_new(1),E_qq_move_i,inter_overlap)
+         CALL Compute_Molecule_Nonbond_Inter_Energy(lm_i,is,E_vdw_box_new(1),E_qq_box_new(1),inter_overlap)
          IF (.NOT. inter_overlap) THEN
-            CALL Compute_Molecule_Nonbond_Inter_Energy(lm_j,js,E_vdw_box_new(2),E_qq_move_j,inter_overlap)
+            CALL Compute_Molecule_Nonbond_Inter_Energy(lm_j,js,E_vdw_box_new(2),E_qq_box_new(2),inter_overlap)
          END IF
       END IF
 !   END IF
@@ -582,11 +578,11 @@ SUBROUTINE Identity_Switch
             accept = accept_or_reject(ln_pacc)
 !         END IF
       ELSE
-         dE_i = dE_i + (E_vdw_move_i - E_vdw_i) !+ (E_qq_move_i - E_qq_i)
+         dE_i = dE_i + (E_vdw_box_new(1) - E_vdw_box_old(1)) + (E_qq_box_new(1) - E_qq_box_old(1)) 
 !         dE_i = dE_i + (E_periodic_qq_move_j - E_periodic_qq_i)
          dE_i = dE_i + dE_lrc_i
 
-         dE_j = dE_j + (E_vdw_move_j - E_vdw_j) !+ (E_qq_move_j - E_qq_j)
+         dE_j = dE_j + (E_vdw_box_new(2) - E_vdw_box_old(2)) + (E_qq_box_new(2) - E_qq_box_old(2)) 
 !         dE_j = dE_j + (E_periodic_qq_move_i - E_periodic_qq_j)
          dE_j = dE_j + dE_lrc_j
 
@@ -621,8 +617,8 @@ SUBROUTINE Identity_Switch
  
             energy(box_i)%total = energy(box_i)%total + dE_i
             energy(box_i)%inter = energy(box_i)%inter + dE_i
-            energy(box_i)%inter_vdw = energy(box_i)%inter_vdw + E_vdw_move_i - E_vdw_i
-            energy(box_i)%inter_q = energy(box_i)%inter_q + E_qq_move_i - E_qq_i
+            energy(box_i)%inter_vdw = energy(box_i)%inter_vdw + E_vdw_box_new(2) - E_vdw_box_old(2)
+            energy(box_i)%inter_q = energy(box_i)%inter_q + E_qq_box_new(2) - E_qq_box_old(2)
             !Intra energies are not needed for the acceptance rule, but they must be attributed to the correct box now
             energy(box_i)%intra = energy(box_i)%intra + dE_bond + dE_angle + dE_dihed + dE_improper
             energy(box_i)%bond = energy(box_i)%bond + dE_bond
