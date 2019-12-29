@@ -33,7 +33,7 @@ SUBROUTINE Identity_Switch
 
    !Variables for steps 1 and 2
    INTEGER :: randint
-   INTEGER :: nmols_tot_i, nmols_tot_j
+   INTEGER :: nmols_tot_i, nmols_tot_j, nmols_tot
    INTEGER :: is, js, ibox, box
 
    !Variables for steps 3 and 4
@@ -75,7 +75,7 @@ SUBROUTINE Identity_Switch
    REAL(DP), ALLOCATABLE, DIMENSION(:) :: E_vdw_box_old, E_vdw_box_new, E_qq_box_old, E_qq_box_new
 
    !acceptance variables
-   REAL(DP) :: ln_pacc, success_ratio_i, success_ratio_j
+   REAL(DP) :: ln_pacc, success_ratio_i, success_ratio_j, P_forward, P_reverse
    LOGICAL :: accept_or_reject
 
    !rotation variables
@@ -120,6 +120,8 @@ SUBROUTINE Identity_Switch
    P_bias_rot_i = 1
    P_bias_rot_j = 1
    P_bias = 1.0_DP
+   P_forward = 1.0_DP
+   P_reverse = 1.0_DP
    rot_overlap_i = .FALSE.
    rot_overlap_j = .FALSE.
 
@@ -153,7 +155,7 @@ SUBROUTINE Identity_Switch
 
    is_list(1) = is
    is_list(2) = js
-
+   
    !*****************************************************************************
    ! Step 3 and 4) Select a box for species i and a box for species j
    !*****************************************************************************
@@ -166,6 +168,7 @@ SUBROUTINE Identity_Switch
    END DO
 
    !TODO need to test for same molecule swaps
+
    IF(nbr_boxes .GT. 1) THEN
       DO ibox = 1, nbr_boxes
          x_box_i(ibox) = REAL(nmols(is, ibox),DP)/REAL(nmols_tot_i,DP)
@@ -175,7 +178,6 @@ SUBROUTINE Identity_Switch
             x_box_j(ibox) = x_box_j(ibox) + x_box_j(ibox-1)
          END IF
       END DO
-
       ! Intra or Inter molecule swap is possible
       randno = rranf()
 
@@ -188,6 +190,12 @@ SUBROUTINE Identity_Switch
       DO box_j = 1, nbr_boxes
          IF ( randno <= x_box_j(box_j)) EXIT
       END DO
+
+      P_forward = P_forward * REAL(nmols(is, box_i),DP)/REAL(nmols_tot_i,DP) &
+              * REAL(nmols(js, box_j),DP)/REAL(nmols_tot_j,DP)
+
+      P_reverse = P_reverse * REAL(nmols(js, box_j)+1,DP)/REAL(nmols_tot_j,DP) & 
+              * REAL(nmols(is, box_i)+1,DP)/REAL(nmols_tot_i,DP)
 
    ELSE
 
@@ -207,7 +215,6 @@ SUBROUTINE Identity_Switch
 
    im_i = INT(rranf() * nmols(is,box_i)) + 1
 
-
    !Locate molecule of species i
    lm_i = locate(im_i, is, box_i)
 
@@ -221,6 +228,12 @@ SUBROUTINE Identity_Switch
 
    lm_list(1) = lm_i
    lm_list(2) = lm_j
+
+   P_forward = P_forward * 1.0_DP / REAL(nmols(is,box_i),DP) &
+          * 1.0_DP / REAL(nmols(js,box_j),DP)
+
+   P_reverse = P_reverse * 1.0_DP / REAL(nmols(js,box_j)+1,DP) &
+          * 1.0_DP / REAL(nmols(is,box_i)+1,DP)
    !*****************************************************************************
    ! Step 7) Calculate initial energies of each box
    !
@@ -556,7 +569,7 @@ SUBROUTINE Identity_Switch
 !            END IF
 !         ELSE
             ln_pacc = beta(box_i) * dE
-            ln_pacc = ln_pacc + DLOG(P_bias)
+            ln_pacc = ln_pacc + DLOG(P_bias) + DLOG(P_forward / P_reverse)
             accept = accept_or_reject(ln_pacc)
 !         END IF
       ELSE
@@ -574,7 +587,7 @@ SUBROUTINE Identity_Switch
 !            END IF
 !         ELSE
             ln_pacc = beta(box_i) * dE_i + beta(box_j) * dE_j
-            ln_pacc = ln_pacc + DLOG(P_bias)
+            ln_pacc = ln_pacc + DLOG(P_bias) + DLOG(P_forward / P_reverse)
             accept = accept_or_reject(ln_pacc)
 !         END IF
       END IF
