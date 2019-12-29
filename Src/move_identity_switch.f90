@@ -33,7 +33,7 @@ SUBROUTINE Identity_Switch
 
    !Variables for steps 1 and 2
    INTEGER :: randint
-   INTEGER :: nmols_tot, nmols_tot_i, nmols_tot_j
+   INTEGER :: nmols_tot_i, nmols_tot_j
    INTEGER :: is, js, ibox, box
 
    !Variables for steps 3 and 4
@@ -130,43 +130,25 @@ SUBROUTINE Identity_Switch
    !those species at random.
 
    !TODO: test when this if is True
-   IF (.NOT. default_switch) THEN
-    randint = INT(rranf() * 2 * num_groups) + 1
 
-    !Determine species
-    is = swap_list(randint, 1)
-    js = swap_list(randint, 2)
+   IF (.NOT. default_switch) THEN
+
+       randint = INT(rranf() * 2 * num_groups) + 1
+
+       !Determine species
+       is = swap_list(randint, 1)
+       js = swap_list(randint, 2)
 
    ELSE
 
-     ! Count the total number of swappable molecules.
-
-     nmols_tot = 0 ! sum over species, box
-      DO is = 1, nspecies
-       ! Only count swappable species
-         DO ibox = 1, nbr_boxes
-            IF ( species_list(is)%int_insert /= int_noinsert ) THEN
-               nmols_tot = nmols_tot + nmols(is,ibox)
-            END IF
-         END DO
-      END DO
-
-     ! Check to make sure there are swappable molecules
-      IF (nmols_tot < 2) THEN
-         err_msg = ''
-         err_msg(1) = 'No swappable molecules'
-         CALL Clean_Abort(err_msg,'Identity_Switch_Move')
-      END IF
-
       ! Pick species for swapping
       is = INT(rranf() * nspecies) + 1
-
       js = INT(rranf() * (nspecies - 1)) + 1
-
-      ! Avoid choosing same species as before
+ 
       IF (js >= is) THEN
          js = js + 1
       END IF
+
    END IF
 
    is_list(1) = is
