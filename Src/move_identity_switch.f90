@@ -60,7 +60,7 @@ SUBROUTINE Identity_Switch
    REAL(DP), DIMENSION(:), ALLOCATABLE :: dx_xcom_j, dy_ycom_j, dz_zcom_j
 
    !Variables for step 10
-   REAL(DP) :: E_vdw_move_i, E_qq_move_i, E_vdw_move_j, E_qq_move_j
+   REAL(DP), DIMENSION(:), ALLOCATABLE :: E_vdw_move, E_qq_move
    REAL(DP) :: E_periodic_qq_i, E_periodic_qq_move_i, E_periodic_qq_j, E_periodic_qq_move_j
    REAL(DP) :: dE, dE_i, dE_j
    REAL(DP) :: E_bond_i, E_bond_j, E_angle_i, E_angle_j, E_dihed_i, E_dihed_j, E_improper_i, E_improper_j
@@ -76,9 +76,7 @@ SUBROUTINE Identity_Switch
 
    !acceptance variables
    REAL(DP) :: ln_pacc, success_ratio_i, success_ratio_j
-   LOGICAL :: accept_or_reject
-
-   !rotation variables
+   LOGICAL :: accept_or_reject !rotation variables
    REAL(DP) :: P_bias_rot_i, P_bias_rot_j
    LOGICAL :: rot_overlap_i, rot_overlap_j
    REAL(DP) :: P_bias
@@ -101,6 +99,15 @@ SUBROUTINE Identity_Switch
    E_qq_box_old = 0.0_DP
    E_vdw_box_new = 0.0_DP
    E_qq_box_new = 0.0_DP
+
+   ALLOCATE(E_vdw_move(2), E_qq_move(2), Stat=AllocateStatus)
+   IF (AllocateStatus /= 0 ) THEN
+      write(*,*)'memory could not be allocated for Energy VDW or QQ box arrays.'
+      write(*,*)'stopping'
+      STOP
+   END IF
+   E_vdw_move= 0.0_DP
+   E_qq_move= 0.0_DP
 
    ALLOCATE(boxes_list(2), Stat = AllocateStatus )
    IF (AllocateStatus /= 0 ) THEN
@@ -232,42 +239,32 @@ SUBROUTINE Identity_Switch
    ntrials(js,box_j)%switch = ntrials(js,box_j)%switch + 1
 
    !Same box
-   IF (box_i .EQ. box_j) THEN
-
-      IF (l_pair_nrg) THEN
-
+   IF (l_pair_nrg) THEN
          CALL Store_Molecule_Pair_Interaction_Arrays(dum1, dum2, dum3, E_vdw_dum, &
-                 E_qq_dum, 2, lm_list, is_list, boxes_list, &
-                 E_vdw_box_old, E_qq_box_old) 
-
+              E_qq_dum, 2, lm_list, is_list, boxes_list, &
+              E_vdw_box_old, E_qq_box_old) 
          ! remove double counting from vdw and qq energies
          ! obtain the position of these molecules to reference vdw and qq pair energy arrays
 
-         CALL Get_Position_Alive(lm_i, is, position_i)
-         CALL Get_Position_Alive(lm_j, js, position_j)
+         IF (box_i .EQ. box_j) THEN
+             CALL Get_Position_Alive(lm_i, is, position_i)
+             CALL Get_Position_Alive(lm_j, js, position_j)
 
-         ! substract off the energy 
+             ! substract off the energy 
 
-         E_vdw_box_old(1) = E_vdw_box_old(1) - pair_nrg_vdw(position_i,position_j)
+             E_vdw_box_old(box_i) = E_vdw_box_old(box_i) - pair_nrg_vdw(position_i,position_j)
+             E_qq_box_old(box_i) = E_qq_box_old(box_i) - pair_nrg_qq(position_i,position_j)
+         END IF
          
-         E_qq_box_old(1) = E_qq_box_old(1) - pair_nrg_qq(position_i,position_j)
-!      ELSE
+   ELSE
+! SAME BOX
 !         CALL Compute_MoleculeCollection_Nonbond_Inter_Energy(2, (/lm_i, lm_j/), (/is, js/), &
 !            E_vdw, E_qq, inter_overlap)
 !         IF (inter_overlap) THEN
 !                 write(*,*) 'WARNING: in inter overlap1'
 !         END IF
-      END IF
-   ELSE
 
-      ! Not in the same box
-
-      IF (l_pair_nrg) THEN
-
-         CALL Store_Molecule_Pair_Interaction_Arrays(dum1, dum2, dum3, E_vdw_dum, E_qq_dum, 2, &
-            lm_list, is_list, boxes_list, E_vdw_box_old, E_qq_box_old)
-
-!      ELSE
+! DIF BOX
 !         CALL Compute_Molecule_Nonbond_Inter_Energy(lm_i,is,E_vdw_i,E_qq_i,inter_overlap)
 !         IF (inter_overlap) THEN
 !                 write(*,*) 'WARNING: in inter overlap2'
@@ -279,9 +276,8 @@ SUBROUTINE Identity_Switch
 !               CALL Compute_Molecule_Nonbond_Intra_Energy(lm_j,js, E_intra_vdw_j,E_intra_qq_j,E_periodic_qq_j,inter_overlap)
 !            END IF
 !         END IF
-      END IF
    END IF
-!
+
 !   IF (inter_overlap)  THEN
 !      err_msg = ""
 !      err_msg(1) = "Attempted to switch molecule " // TRIM(Int_To_String(im_i)) // &
@@ -357,9 +353,6 @@ SUBROUTINE Identity_Switch
    molecule_list(lm_i,is)%which_box = box_j
    molecule_list(lm_j,js)%which_box = box_i
 
-   !write(*,*) locate(:, is, box_i)
-   !write(*,*) '******'
-
   !Delete i's locate in box_i
    IF (im_i < nmols(is,box_i)) THEN
       DO k = im_i + 1, nmols(is,box_i)
@@ -417,17 +410,26 @@ SUBROUTINE Identity_Switch
   !
   !*****************************************************************************
 !   IF ( .NOT. rot_overlap_i .AND. .NOT. rot_overlap_j) THEN
-      IF (box_i .EQ. box_j) THEN
 
-         CALL Compute_MoleculeCollection_Nonbond_Inter_Energy(2, lm_list, is_list, &
-            E_vdw_box_new(1), E_qq_box_new(1), inter_overlap) 
+   CALL Compute_Molecule_Nonbond_Inter_Energy(lm_i,is,E_vdw_move(1),E_qq_move(1),inter_overlap)
+   CALL Compute_Molecule_Nonbond_Inter_Energy(lm_j,js,E_vdw_move(2),E_qq_move(2),inter_overlap)
 
-      ELSE
-         CALL Compute_Molecule_Nonbond_Inter_Energy(lm_i,is,E_vdw_box_new(1),E_qq_box_new(1),inter_overlap)
-         IF (.NOT. inter_overlap) THEN
-            CALL Compute_Molecule_Nonbond_Inter_Energy(lm_j,js,E_vdw_box_new(2),E_qq_box_new(2),inter_overlap)
-         END IF
-      END IF
+   IF (box_i .EQ. box_j) THEN
+
+       E_vdw_box_new(box_i) = E_vdw_move(1) + E_vdw_move(2)
+       E_qq_box_new(box_i) = E_qq_move(1) + E_qq_move(2) 
+
+       CALL Get_Position_Alive(lm_i, is, position_i)
+       CALL Get_Position_Alive(lm_j, js, position_j)
+
+       ! substract off the energy 
+
+       E_vdw_box_new(box_i) = E_vdw_box_new(box_i) - pair_nrg_vdw(position_i,position_j)
+       E_qq_box_new(box_i) = E_qq_box_new(box_i) - pair_nrg_qq(position_i,position_j)
+   ELSE
+       E_vdw_box_new(box_i) = E_vdw_move(1)
+       E_vdw_box_new(box_j) = E_vdw_move(2)
+   END IF
 !   END IF
 !
 !   IF (inter_overlap .OR. rot_overlap_i .OR. rot_overlap_j) THEN
@@ -545,50 +547,31 @@ SUBROUTINE Identity_Switch
       END IF
 
       !Compute difference with nonbonded energies only
-     IF (box_i .EQ. box_j) THEN
-         dE = dE + (E_vdw_box_new(1) - E_vdw_box_old(1)) + (E_qq_box_new(1) - E_qq_box_old(1))
 
-!         dE = dE + (E_periodic_qq_move_j - E_periodic_qq_j) + (E_periodic_qq_move_i - E_periodic_qq_i)
-         dE = dE + dE_lrc_i
-!         IF (int_sim_type == sim_nvt_min) THEN
-!            IF (dE  <= 0.0_DP) THEN
-!               accept = .TRUE.
-!            END IF
-!         ELSE
-            ln_pacc = beta(box_i) * dE
-            ln_pacc = ln_pacc + DLOG(P_bias)
-            accept = accept_or_reject(ln_pacc)
-!         END IF
-      ELSE
-         dE_i = dE_i + (E_vdw_box_new(1) - E_vdw_box_old(1)) + (E_qq_box_new(1) - E_qq_box_old(1)) 
-!         dE_i = dE_i + (E_periodic_qq_move_j - E_periodic_qq_i)
-         dE_i = dE_i + dE_lrc_i
+      dE_i = dE_i + (E_vdw_box_new(box_i) - E_vdw_box_old(box_i)) + (E_qq_box_new(box_i) - E_qq_box_old(box_i)) 
+      !dE_i = dE_i + (E_periodic_qq_move_j - E_periodic_qq_i)
+      dE_i = dE_i + dE_lrc_i
 
-         dE_j = dE_j + (E_vdw_box_new(2) - E_vdw_box_old(2)) + (E_qq_box_new(2) - E_qq_box_old(2)) 
-!         dE_j = dE_j + (E_periodic_qq_move_i - E_periodic_qq_j)
-         dE_j = dE_j + dE_lrc_j
+      dE_j = dE_j + (E_vdw_box_new(box_j) - E_vdw_box_old(box_j)) + (E_qq_box_new(box_j) - E_qq_box_old(box_j)) 
+      !dE_j = dE_j + (E_periodic_qq_move_i - E_periodic_qq_j)
+      dE_j = dE_j + dE_lrc_j
 
-!         IF (int_sim_type == sim_nvt_min) THEN
-!            IF ((dE_i + dE_j)  <= 0.0_DP) THEN
-!               accept = .TRUE.
-!            END IF
-!         ELSE
-            ln_pacc = beta(box_i) * dE_i + beta(box_j) * dE_j
-            ln_pacc = ln_pacc + DLOG(P_bias)
-            accept = accept_or_reject(ln_pacc)
-!         END IF
-      END IF
+      ln_pacc = beta(box_i) * dE_i + beta(box_j) * dE_j
+      ln_pacc = ln_pacc + DLOG(P_bias)
+      accept = accept_or_reject(ln_pacc)
 
       IF (accept) THEN
   
          nsuccess(is,box_i)%switch = nsuccess(is,box_i)%switch + 1
          nsuccess(js,box_j)%switch = nsuccess(js,box_j)%switch + 1
          !accept the move and update global energies
+
+
          IF (box_i .EQ. box_j) THEN
             energy(box_i)%total = energy(box_i)%total + dE
             energy(box_i)%inter = energy(box_i)%inter + dE
-            energy(box_i)%inter_vdw = energy(box_i)%inter_vdw + E_vdw_box_new(1) - E_vdw_box_old(1)
-            energy(box_i)%inter_q   = energy(box_i)%inter_q   + E_qq_box_new(1) - E_qq_box_old(1)
+            energy(box_i)%inter_vdw = energy(box_i)%inter_vdw + E_vdw_box_new(box_i) - E_vdw_box_old(box_i)
+            energy(box_i)%inter_q   = energy(box_i)%inter_q   + E_qq_box_new(box_i) - E_qq_box_old(box_i)
             energy(box_i)%lrc = E_lrc_i
 
 !            IF(int_charge_sum_style(box_i) == charge_ewald .AND. (has_charge(is) .OR. has_charge(js))) THEN
@@ -599,8 +582,8 @@ SUBROUTINE Identity_Switch
  
             energy(box_i)%total = energy(box_i)%total + dE_i
             energy(box_i)%inter = energy(box_i)%inter + dE_i
-            energy(box_i)%inter_vdw = energy(box_i)%inter_vdw + E_vdw_box_new(2) - E_vdw_box_old(2)
-            energy(box_i)%inter_q = energy(box_i)%inter_q + E_qq_box_new(2) - E_qq_box_old(2)
+            energy(box_i)%inter_vdw = energy(box_i)%inter_vdw + E_vdw_box_new(box_i) - E_vdw_box_old(box_i)
+            energy(box_i)%inter_q = energy(box_i)%inter_q + E_qq_box_new(box_i) - E_qq_box_old(box_i)
             !Intra energies are not needed for the acceptance rule, but they must be attributed to the correct box now
             energy(box_i)%intra = energy(box_i)%intra + dE_bond + dE_angle + dE_dihed + dE_improper
             energy(box_i)%bond = energy(box_i)%bond + dE_bond
@@ -613,8 +596,8 @@ SUBROUTINE Identity_Switch
 
             energy(box_j)%total = energy(box_j)%total + dE_j
             energy(box_j)%inter = energy(box_j)%inter + dE_j
-            energy(box_j)%inter_vdw = energy(box_j)%inter_vdw + E_vdw_move_j - E_vdw_j
-            energy(box_j)%inter_q = energy(box_j)%inter_q + E_qq_move_j - E_qq_j
+            energy(box_j)%inter_vdw = energy(box_j)%inter_vdw + E_vdw_box_new(box_j) - E_vdw_box_old(box_j)
+            energy(box_j)%inter_q = energy(box_j)%inter_q + E_qq_box_new(box_j) - E_qq_box_old(box_j)
             !Intra energies are not needed for the acceptance rule, but they must be attributed to the correct box now
             energy(box_j)%intra = energy(box_j)%intra - dE_bond - dE_angle - dE_dihed - dE_improper
             energy(box_j)%bond = energy(box_j)%bond - dE_bond
@@ -684,6 +667,7 @@ SUBROUTINE Identity_Switch
 !   ENDIF
       
    DEALLOCATE(E_vdw_box_old, E_vdw_box_new, E_qq_box_old, E_qq_box_new)
+   DEALLOCATE(E_vdw_move, E_qq_move)
    DEALLOCATE(lm_list, is_list, boxes_list)
 
    CONTAINS
