@@ -1,9 +1,9 @@
 # Run_Name
-gemc_methane.out
+test_nvt_methane.out
 !------------------------------------------------------------------------------
 
 # Sim_Type
-GEMC
+NVT
 !------------------------------------------------------------------------------
 
 # Nbr_Species
@@ -11,8 +11,7 @@ GEMC
 !------------------------------------------------------------------------------
 
 # VDW_Style
-LJ   cut_tail   2.55
-LJ   cut_tail   2.55
+LJ   cut_tail   14.00
 !------------------------------------------------------------------------------
 
 # Rcutoff_Low
@@ -24,38 +23,33 @@ LB
 !------------------------------------------------------------------------------
 
 # Molecule_Files
-methane.mcf 10
-methane.mcf 10
+large.mcf 250
+small.mcf 250
 !----------------------------------------------------------one line per species
 
-!33.00
-!37.50
 # Box_Info
-2
+1
 cubic
-5.1
+33.0
 
-cubic
-5.1
 !-------------------------------------------------------line 1: number of boxes
 !--------------------------------------------------------------line 2: box type
 !--------------------------------------------------------------line 3: box size
 !--------------------------------------------------------------repeat for second box
 
 # Temperature_Info
-175.0 
-175.0
+111.0 
 !----------------------------------------------------------one temperature per box
 
 # Move_Probability_Info
 
-# Prob_Volume
-0.000001
-10.0
+# Prob_Translation
+0.95
+0.5 0.5
 
 ! if nbr entries > 3 then default switch = false, else true.
 # Prob_Identity_Switch
-0.999999 0    
+0.05 0    
 1 2
 ! prob_identity_switch number_rotations [num_groups]
 
@@ -64,13 +58,10 @@ cubic
 !-----------------------------------------each molecule moves per volume change
 
 # Start_Type
-make_config 3 3
-make_config 3 3
+make_config 250 250
 
-!make_config 100 220
-!make_config 150  30
-! box1,sp1  box2,sp1
-! box1,sp2  box2,sp2
+! box1,sp1  box1,sp1
+! box2,sp1  box2,sp2
 !--------make_config: one line for each species and one entry/line for each box
 !------------------------------------------------------------read_old: filename
 !----------------------------------------------------------checkpoint: filename
@@ -82,9 +73,9 @@ Equilibration 100 100
 
 # Simulation_Length_Info
 Units       Steps
-Prop_Freq   1
-Coord_Freq  10
-Run         100
+Prop_Freq   1000
+Coord_Freq  1000000
+Run         1000000
 !------------------ simulation length every 2200 steps, XYZ output every 2200 steps, property
 !---------------------------------------output every 100 steps
 
@@ -93,23 +84,14 @@ Run         100
 !------------------------------------------------------------------------------
 
 # Property_Info 1
-Density
-Nmols
-Volume
-Pressure
-!------------------------------------------------------------------------------
-
-# Property_Info 2
-Density
-Nmols
-Volume
+energy_total
 Pressure
 !------------------------------------------------------------------------------
 
 
 # Fragment_Files
-species1/frag1/frag1.dat  1
-species1/frag1/frag1.dat  2
+../species1/frag1/frag1.dat  1
+../species1/frag1/frag1.dat  2
 !---------------------------------------------------------one line per fragment
 
 # CBMC_Info

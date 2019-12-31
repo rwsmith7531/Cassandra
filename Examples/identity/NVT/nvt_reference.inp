@@ -1,0 +1,105 @@
+# Run_Name
+nvt_reference.out
+!------------------------------------------------------------------------------
+
+# Sim_Type
+NVT
+!------------------------------------------------------------------------------
+
+# Nbr_Species
+2
+!------------------------------------------------------------------------------
+
+# VDW_Style
+LJ   cut_tail   14.00
+!------------------------------------------------------------------------------
+
+# Rcutoff_Low
+1.0
+!------------------------------------------------------------------------------
+
+# Mixing_Rule
+LB
+!------------------------------------------------------------------------------
+
+# Molecule_Files
+large.mcf 250
+small.mcf 250 
+!----------------------------------------------------------one line per species
+
+# Box_Info
+1
+cubic
+33.0
+
+!-------------------------------------------------------line 1: number of boxes
+!--------------------------------------------------------------line 2: box type
+!--------------------------------------------------------------line 3: box size
+!--------------------------------------------------------------repeat for second box
+
+# Temperature_Info
+111.0 
+!----------------------------------------------------------one temperature per box
+
+# Move_Probability_Info
+
+! if nbr entries > 3 then default switch = false, else true.
+# Prob_Translation
+1.0
+0.5 0.5
+! prob_identity_switch number_rotations [num_groups]
+
+# Done_Probability_Info
+!---------------------one line for each box and one entry/line for each species
+!-----------------------------------------each molecule moves per volume change
+
+# Start_Type
+make_config 250 250
+
+! box1,sp1  box1,sp1
+! box2,sp1  box2,sp2
+!--------make_config: one line for each species and one entry/line for each box
+!------------------------------------------------------------read_old: filename
+!----------------------------------------------------------checkpoint: filename
+
+# Run_Type
+Equilibration 100 100
+!-------------------------Equilibration: update maximum widths every 100 steps/update maximum
+!-------------------------volume displacement every 100 steps
+
+# Simulation_Length_Info
+Units       Steps
+Prop_Freq   1000
+Coord_Freq  10000000
+Run         10000000
+!------------------ simulation length every 2200 steps, XYZ output every 2200 steps, property
+!---------------------------------------output every 100 steps
+
+# Seed
+1211131639 1211131640
+!------------------------------------------------------------------------------
+
+# Property_Info 1
+energy_total
+Pressure
+!------------------------------------------------------------------------------
+
+
+# Fragment_Files
+../species1/frag1/frag1.dat  1
+../species1/frag1/frag1.dat  2
+!---------------------------------------------------------one line per fragment
+
+# CBMC_Info
+kappa_ins 12
+rcut_cbmc 6.5 6.5
+!------------------------------------------------------------------------------
+
+# Average_Info
+1
+
+# Pair_Energy
+TRUE
+!------------------------------------------------------------------------------
+
+END

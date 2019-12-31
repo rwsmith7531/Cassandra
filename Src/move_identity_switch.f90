@@ -34,7 +34,7 @@ SUBROUTINE Identity_Switch
    !Variables for steps 1 and 2
    INTEGER :: randint
    INTEGER :: nmols_tot_i, nmols_tot_j, nmols_tot
-   INTEGER :: is, js, ibox, box
+   INTEGER :: is, js, ibox, box, this_box
 
    !Variables for steps 3 and 4
    REAL(DP) :: randno
@@ -46,14 +46,11 @@ SUBROUTINE Identity_Switch
    INTEGER :: im_j, lm_j
 
    !Variables for step 7
-   REAL(DP) :: E_vdw_i, E_qq_i, E_vdw_j, E_qq_j
-   REAL(DP), DIMENSION(:), ALLOCATABLE :: box_nrg_vdw_temp, box_nrg_qq_temp
    LOGICAL :: inter_overlap
-   INTEGER :: dum1, dum2, dum3, position_i, position_j
-   REAL(DP) :: E_qq_dum, E_vdw_dum
+   INTEGER :: position_i, position_j
 
    !Variables for step 8
-   INTEGER :: i,j,k, im_i_after, im_j_after, temp
+   INTEGER :: i,j,k
    REAL(DP) :: xcom_i_old, ycom_i_old, zcom_i_old
    REAL(DP) :: xcom_j_old, ycom_j_old, zcom_j_old
    REAL(DP), DIMENSION(:), ALLOCATABLE :: dx_xcom_i, dy_ycom_i, dz_zcom_i
@@ -67,7 +64,9 @@ SUBROUTINE Identity_Switch
    REAL(DP) :: dE_bond, dE_angle, dE_dihed, dE_improper, de_intra_vdw, dE_intra_qq
    REAL(DP) :: E_reciprocal_move, E_reciprocal_move_i, E_reciprocal_move_j
    REAL(DP), ALLOCATABLE, DIMENSION(:) :: E_lrc_box
-   REAL(DP) :: dE_lrc, dE_lrc_i, dE_lrc_j
+   INTEGER(DP), ALLOCATABLE, DIMENSION(:,:) :: nbeads_boxes
+   INTEGER :: j_type, i_type
+   REAL(DP), ALLOCATABLE, DIMENSION(:) :: dE_lrc
    REAL(DP), ALLOCATABLE :: cos_mol_old_i(:), sin_mol_old_i(:), cos_mol_old_j(:), sin_mol_old_j(:)
    REAL(DP), DIMENSION(:,:), ALLOCATABLE, TARGET :: cos_sum_old_idsw, sin_sum_old_idsw
    INTEGER, DIMENSION(:), ALLOCATABLE :: lm_list, is_list, boxes_list
@@ -80,7 +79,6 @@ SUBROUTINE Identity_Switch
    REAL(DP) :: P_bias_rot_i, P_bias_rot_j
    LOGICAL :: rot_overlap_i, rot_overlap_j
    REAL(DP) :: P_bias
-   INTEGER :: im_in, jm_in
  
    ALLOCATE(lm_list(2), is_list(2), Stat = AllocateStatus )
    IF (AllocateStatus /= 0 ) THEN
@@ -111,7 +109,7 @@ SUBROUTINE Identity_Switch
    E_vdw_box_new = 0.0_DP
    E_qq_box_new = 0.0_DP
 
-   ALLOCATE(E_lrc_box(2), dE_box(2), Stat=AllocateStatus)
+   ALLOCATE(E_lrc_box(2), dE_box(2), dE_lrc(2), Stat=AllocateStatus)
    IF (AllocateStatus /= 0 ) THEN
       write(*,*)'memory could not be allocated for E_lrc_box' 
       write(*,*)'stopping'
@@ -119,10 +117,18 @@ SUBROUTINE Identity_Switch
    END IF
    E_lrc_box = 0.0_DP
    dE_box = 0.0_DP
+   dE_lrc= 0.0_DP
 
    ALLOCATE(boxes_list(2), Stat = AllocateStatus )
    IF (AllocateStatus /= 0 ) THEN
       write(*,*)'memory could not be allocated for box ID arrays'
+      write(*,*)'stopping'
+      STOP
+   END IF
+
+   ALLOCATE(nbeads_boxes(nbr_atomtypes, 2), Stat = AllocateStatus )
+   IF (AllocateStatus /= 0 ) THEN
+      write(*,*)'memory could not be allocated for n_beads_boxes' 
       write(*,*)'stopping'
       STOP
    END IF
@@ -133,14 +139,13 @@ SUBROUTINE Identity_Switch
       STOP
    END IF
 
-   E_qq_i = 0.0_DP
-   E_qq_j = 0.0_DP
+   nbeads_boxes = 0.0_DP
 
    E_reciprocal_move = 0.0_DP
    inter_overlap = .FALSE.
    accept = .FALSE.
-   box = 1
 
+   ln_pacc = 0.0_DP
    P_bias_rot_i = 1
    P_bias_rot_j = 1
    P_bias = 1.0_DP
@@ -261,17 +266,18 @@ SUBROUTINE Identity_Switch
               E_vdw_mol_old, E_qq_mol_old) 
          ! remove double counting from vdw and qq energies
          ! obtain the position of these molecules to reference vdw and qq pair energy arrays
-
+         !write(2,*) 'vdw old', E_vdw_box_old
          E_vdw_box_old(box_i) = E_vdw_mol_old(1)
          E_vdw_box_old(box_j) = E_vdw_mol_old(2)
+         !write(2,*) 'vdw old', E_vdw_box_old
 
          E_qq_box_old(box_i) = E_qq_mol_old(1)
          E_qq_box_old(box_j) = E_qq_mol_old(2)
         
          IF (box_i .EQ. box_j) THEN
-
              E_vdw_box_old(box_i) = E_vdw_mol_old(1) + E_vdw_mol_old(2)
              E_qq_box_old(box_i) = E_qq_mol_old(1) + E_qq_mol_old(2)
+         !write(2,*) 'vdw old', E_vdw_box_old
 
              CALL Get_Position_Alive(lm_i, is, position_i)
              CALL Get_Position_Alive(lm_j, js, position_j)
@@ -280,6 +286,7 @@ SUBROUTINE Identity_Switch
 
              E_vdw_box_old(box_i) = E_vdw_box_old(box_i) - pair_nrg_vdw(position_i,position_j)
              E_qq_box_old(box_i) = E_qq_box_old(box_i) - pair_nrg_qq(position_i,position_j)
+         !write(2,*) 'vdw old', E_vdw_box_old
          END IF
    ELSE
 ! SAME BOX
@@ -439,8 +446,8 @@ SUBROUTINE Identity_Switch
    CALL Compute_Molecule_Nonbond_Inter_Energy(lm_i,is,E_vdw_mol_new(1),E_qq_mol_new(1),inter_overlap)
    CALL Compute_Molecule_Nonbond_Inter_Energy(lm_j,js,E_vdw_mol_new(2),E_qq_mol_new(2),inter_overlap)
 
-   E_vdw_box_new(box_i) = E_vdw_mol_new(1)
-   E_vdw_box_new(box_j) = E_vdw_mol_new(2)
+   E_vdw_box_new(box_i) = E_vdw_mol_new(2)
+   E_vdw_box_new(box_j) = E_vdw_mol_new(1)
 
    IF (box_i .EQ. box_j) THEN
        E_vdw_box_new(box_i) = E_vdw_mol_new(1) + E_vdw_mol_new(2)
@@ -545,42 +552,79 @@ SUBROUTINE Identity_Switch
       dE_intra_vdw = E_intra_vdw_j - E_intra_vdw_i
       dE_intra_qq = E_intra_qq_j - E_intra_qq_i
 
-      IF (int_vdw_sum_style(box_i) == vdw_cut_tail) THEN
+      IF (box_i .NE. box_j .AND. int_vdw_sum_style(box_i) == vdw_cut_tail) THEN
+
+         nbeads_boxes(:,box_i) = nint_beads(:,box_i)
+  
+         DO i = 1, natoms(js)
+            j_type = nonbond_list(i,js)%atom_type_number
+            nint_beads(j_type,box_i) = nint_beads(j_type,box_i) + 1
+         END DO
+
+         DO i = 1, natoms(is)
+            i_type = nonbond_list(i,is)%atom_type_number
+            nint_beads(i_type,box_i) = nint_beads(i_type,box_i) - 1
+         END DO
+
          CALL Compute_LR_correction(box_i,E_lrc_box(box_i))
-         dE_lrc_i = E_lrc_box(box_i) - energy(box_i)%lrc
+         dE_lrc(box_i) = E_lrc_box(box_i) - energy(box_i)%lrc
+
       END IF
 
-      IF (int_vdw_sum_style(box_j) == vdw_cut_tail) THEN
+      IF (box_i .NE. box_j .AND. int_vdw_sum_style(box_j) == vdw_cut_tail) THEN
+
+         nbeads_boxes(:,box_j) = nint_beads(:,box_j)
+ 
+         DO i = 1, natoms(is)
+            i_type = nonbond_list(i,is)%atom_type_number
+            nint_beads(i_type,box_j) = nint_beads(i_type,box_j) + 1
+         END DO
+
+         DO i = 1, natoms(js)
+            j_type = nonbond_list(i,js)%atom_type_number
+            nint_beads(j_type,box_j) = nint_beads(j_type,box_j) - 1
+         END DO
+
          CALL Compute_LR_correction(box_j,E_lrc_box(box_j))
-         dE_lrc_j = E_lrc_box(box_j) - energy(box_j)%lrc
-      END IF
+         dE_lrc(box_j) = E_lrc_box(box_j) - energy(box_j)%lrc
 
+      END IF
 
       !Compute difference with nonbonded energies only
-
-      dE_box(box_i) = dE_box(box_i) + (E_vdw_mol_new(box_i) - E_vdw_mol_old(box_i)) + (E_qq_mol_new(box_i) - E_qq_mol_old(box_i)) 
-      !dE_i = dE_i + (E_periodic_qq_move_j - E_periodic_qq_i)
-      dE_box(box_i) = dE_box(box_i) + dE_lrc_i
-
-      dE_box(box_j) = dE_box(box_j) + (E_vdw_mol_new(box_j) - E_vdw_mol_old(box_j)) + (E_qq_mol_new(box_j) - E_qq_mol_old(box_j)) 
-      !dE_j = dE_j + (E_periodic_qq_move_i - E_periodic_qq_j)
-      dE_box(box_j) = dE_box(box_j) + dE_lrc_j
+      DO ibox = 1, nbr_boxes
+          this_box = boxes_list(ibox)
+          dE_box(this_box) = dE_box(this_box) + (E_vdw_box_new(this_box) - E_vdw_box_old(this_box)) + (E_qq_box_new(this_box) - E_qq_box_old(this_box)) 
+          !dE_i = dE_i + (E_periodic_qq_move_j - E_periodic_qq_i)
+          dE_box(this_box) = dE_box(this_box) + dE_lrc(this_box)
+          IF (box_i .EQ. box_j) EXIT
+      END DO
 
       ln_pacc = beta(box_i) * dE_box(box_i) + beta(box_j) * dE_box(box_j)
       ln_pacc = ln_pacc + DLOG(P_bias)
       accept = accept_or_reject(ln_pacc)
 
       IF (accept) THEN
+
+!         IF(int_charge_sum_style(box_i) == charge_ewald .AND. (has_charge(is) .OR. has_charge(js))) THEN
+!            energy(box_i)%reciprocal = E_reciprocal_move_i
+!         END IF
+         IF (l_pair_nrg) DEALLOCATE(pair_vdw_temp,pair_qq_temp)
+!         IF (ALLOCATED(cos_mol_old_i)) DEALLOCATE(cos_mol_old_i)
+!         IF (ALLOCATED(sin_mol_old_i)) DEALLOCATE(sin_mol_old_i)
+!         IF (ALLOCATED(sin_mol_old_j)) DEALLOCATE(sin_mol_old_j)
+!         IF (ALLOCATED(sin_mol_old_j)) DEALLOCATE(sin_mol_old_j)
+!
+
+
   
          nsuccess(is,box_i)%switch = nsuccess(is,box_i)%switch + 1
          nsuccess(js,box_j)%switch = nsuccess(js,box_j)%switch + 1
          !accept the move and update global energies
 
-
-         energy(box_i)%total = energy(box_i)%total + dE_box(box_i) + de_box(box_j)
-         energy(box_i)%inter = energy(box_i)%inter + dE_box(box_i)
-         energy(box_i)%inter_vdw = energy(box_i)%inter_vdw + E_vdw_mol_new(box_i) - E_vdw_mol_old(box_i)
-         energy(box_i)%inter_q = energy(box_i)%inter_q + E_qq_mol_new(box_i) - E_qq_mol_old(box_i)
+         energy(box_i)%total = energy(box_i)%total + dE_box(box_i)
+         energy(box_i)%inter = energy(box_i)%inter + dE_box(box_i) 
+         energy(box_i)%inter_vdw = energy(box_i)%inter_vdw + E_vdw_box_new(box_i) - E_vdw_box_old(box_i)
+         energy(box_i)%inter_q = energy(box_i)%inter_q + E_qq_box_new(box_i) - E_qq_box_old(box_i)
          !Intra energies are not needed for the acceptance rule, but they must be attributed to the correct box now
          energy(box_i)%intra = energy(box_i)%intra + dE_bond + dE_angle + dE_dihed + dE_improper
          energy(box_i)%bond = energy(box_i)%bond + dE_bond
@@ -589,12 +633,14 @@ SUBROUTINE Identity_Switch
          energy(box_i)%improper = energy(box_i)%improper + dE_improper
          energy(box_i)%intra_vdw = energy(box_i)%intra_vdw + dE_intra_vdw
          energy(box_i)%intra_q = energy(box_i)%intra_q + dE_intra_qq
-         energy(box_i)%lrc = E_lrc_box(box_i)
+         energy(box_i)%lrc = energy(box_i)%lrc + dE_lrc(box_i)
+
+         IF (box_i == box_j) RETURN
 
          energy(box_j)%total = energy(box_j)%total + dE_box(box_j)
-         energy(box_j)%inter = energy(box_j)%inter + dE_box(box_j)
-         energy(box_j)%inter_vdw = energy(box_j)%inter_vdw + E_vdw_mol_new(box_j) - E_vdw_mol_old(box_j)
-         energy(box_j)%inter_q = energy(box_j)%inter_q + E_qq_mol_new(box_j) - E_qq_mol_old(box_j)
+         energy(box_j)%inter = energy(box_j)%inter + dE_box(box_j) 
+         energy(box_j)%inter_vdw = energy(box_j)%inter_vdw + E_vdw_box_new(box_j) - E_vdw_box_old(box_j)
+         energy(box_j)%inter_q = energy(box_j)%inter_q + E_qq_box_new(box_j) - E_qq_box_old(box_j)
          !Intra energies are not needed for the acceptance rule, but they must be attributed to the correct box now
          energy(box_j)%intra = energy(box_j)%intra - dE_bond - dE_angle - dE_dihed - dE_improper
          energy(box_j)%bond = energy(box_j)%bond - dE_bond
@@ -603,22 +649,13 @@ SUBROUTINE Identity_Switch
          energy(box_j)%improper = energy(box_j)%improper - dE_improper
          energy(box_j)%intra_vdw = energy(box_j)%intra_vdw - dE_intra_vdw
          energy(box_j)%intra_q = energy(box_j)%intra_q - dE_intra_qq
-         energy(box_j)%lrc = E_lrc_box(box_j)
-!
-!         IF(int_charge_sum_style(box_i) == charge_ewald .AND. (has_charge(is) .OR. has_charge(js))) THEN
-!            energy(box_i)%reciprocal = E_reciprocal_move_i
-!         END IF
+         energy(box_j)%lrc = energy(box_j)%lrc + dE_lrc(box_j)
+
 !
 !         IF(int_charge_sum_style(box_j) == charge_ewald .AND. (has_charge(is) .OR. has_charge(js))) THEN
 !            energy(box_j)%reciprocal = E_reciprocal_move_j
 !         END IF
 !
-!
-         IF (l_pair_nrg) DEALLOCATE(pair_vdw_temp,pair_qq_temp)
-!         IF (ALLOCATED(cos_mol_old_i)) DEALLOCATE(cos_mol_old_i)
-!         IF (ALLOCATED(sin_mol_old_i)) DEALLOCATE(sin_mol_old_i)
-!         IF (ALLOCATED(sin_mol_old_j)) DEALLOCATE(sin_mol_old_j)
-!         IF (ALLOCATED(sin_mol_old_j)) DEALLOCATE(sin_mol_old_j)
 !
       ELSE
 
@@ -649,10 +686,16 @@ SUBROUTINE Identity_Switch
 !         END IF
 !
          IF (l_pair_nrg) THEN
-             CALL Reset_Molecule_Pair_Interaction_Arrays(dum1, dum2, dum3, 2, & 
-                     (/lm_i, lm_j/), (/is, js/), (/box_i, box_j/))
+                CALL Reset_Molecule_Pair_Nrg_Arrays(2, lm_list, is_list, boxes_list)
          END IF
 
+         IF (box_i .NE. box_j .AND. int_vdw_sum_style(box_i) == vdw_cut_tail ) THEN
+            nint_beads(:,box_i) = nbeads_boxes(:, box_i)
+         END IF
+  
+         IF (box_i .NE. box_j .AND. int_vdw_sum_style(box_j) == vdw_cut_tail ) THEN
+            nint_beads(:,box_j) = nbeads_boxes(:, box_j)
+         END IF
       END IF
 
       IF (verbose_log) THEN
@@ -665,6 +708,8 @@ SUBROUTINE Identity_Switch
    DEALLOCATE(E_vdw_mol_old, E_vdw_mol_new, E_qq_mol_old, E_qq_mol_new)
    DEALLOCATE(E_vdw_box_old, E_vdw_box_new, E_qq_box_old, E_qq_box_new)
    DEALLOCATE(lm_list, is_list, boxes_list)
+   DEALLOCATE(nbeads_boxes)
+   DEALLOCATE(dE_lrc)
 
    CONTAINS
    !**************************************************************************
