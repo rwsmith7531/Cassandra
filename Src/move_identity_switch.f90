@@ -577,56 +577,42 @@ SUBROUTINE Identity_Switch
          !accept the move and update global energies
 
 
-         IF (box_i .EQ. box_j) THEN
-            energy(box_i)%total = energy(box_i)%total + dE_box(box_i)
-            energy(box_i)%inter = energy(box_i)%inter + dE_box(box_i)
-            energy(box_i)%inter_vdw = energy(box_i)%inter_vdw + E_vdw_mol_new(box_i) - E_vdw_mol_old(box_i)
-            energy(box_i)%inter_q   = energy(box_i)%inter_q   + E_qq_mol_new(box_i) - E_qq_mol_old(box_i)
-            energy(box_i)%lrc = E_lrc_box(box_i)
+         energy(box_i)%total = energy(box_i)%total + dE_box(box_i) + de_box(box_j)
+         energy(box_i)%inter = energy(box_i)%inter + dE_box(box_i)
+         energy(box_i)%inter_vdw = energy(box_i)%inter_vdw + E_vdw_mol_new(box_i) - E_vdw_mol_old(box_i)
+         energy(box_i)%inter_q = energy(box_i)%inter_q + E_qq_mol_new(box_i) - E_qq_mol_old(box_i)
+         !Intra energies are not needed for the acceptance rule, but they must be attributed to the correct box now
+         energy(box_i)%intra = energy(box_i)%intra + dE_bond + dE_angle + dE_dihed + dE_improper
+         energy(box_i)%bond = energy(box_i)%bond + dE_bond
+         energy(box_i)%angle = energy(box_i)%angle + dE_angle
+         energy(box_i)%dihedral = energy(box_i)%dihedral + dE_dihed
+         energy(box_i)%improper = energy(box_i)%improper + dE_improper
+         energy(box_i)%intra_vdw = energy(box_i)%intra_vdw + dE_intra_vdw
+         energy(box_i)%intra_q = energy(box_i)%intra_q + dE_intra_qq
+         energy(box_i)%lrc = E_lrc_box(box_i)
 
-!            IF(int_charge_sum_style(box_i) == charge_ewald .AND. (has_charge(is) .OR. has_charge(js))) THEN
-!               energy(box_i)%reciprocal = E_reciprocal_move
-!            END IF
+         energy(box_j)%total = energy(box_j)%total + dE_box(box_j)
+         energy(box_j)%inter = energy(box_j)%inter + dE_box(box_j)
+         energy(box_j)%inter_vdw = energy(box_j)%inter_vdw + E_vdw_mol_new(box_j) - E_vdw_mol_old(box_j)
+         energy(box_j)%inter_q = energy(box_j)%inter_q + E_qq_mol_new(box_j) - E_qq_mol_old(box_j)
+         !Intra energies are not needed for the acceptance rule, but they must be attributed to the correct box now
+         energy(box_j)%intra = energy(box_j)%intra - dE_bond - dE_angle - dE_dihed - dE_improper
+         energy(box_j)%bond = energy(box_j)%bond - dE_bond
+         energy(box_j)%angle = energy(box_j)%angle - dE_angle
+         energy(box_j)%dihedral = energy(box_j)%dihedral - dE_dihed
+         energy(box_j)%improper = energy(box_j)%improper - dE_improper
+         energy(box_j)%intra_vdw = energy(box_j)%intra_vdw - dE_intra_vdw
+         energy(box_j)%intra_q = energy(box_j)%intra_q - dE_intra_qq
+         energy(box_j)%lrc = E_lrc_box(box_j)
 !
-         ELSE
-
-            energy(box_i)%total = energy(box_i)%total + dE_box(box_i) + de_box(box_j)
-            energy(box_i)%inter = energy(box_i)%inter + dE_box(box_i)
-            energy(box_i)%inter_vdw = energy(box_i)%inter_vdw + E_vdw_mol_new(box_i) - E_vdw_mol_old(box_i)
-            energy(box_i)%inter_q = energy(box_i)%inter_q + E_qq_mol_new(box_i) - E_qq_mol_old(box_i)
-            !Intra energies are not needed for the acceptance rule, but they must be attributed to the correct box now
-            energy(box_i)%intra = energy(box_i)%intra + dE_bond + dE_angle + dE_dihed + dE_improper
-            energy(box_i)%bond = energy(box_i)%bond + dE_bond
-            energy(box_i)%angle = energy(box_i)%angle + dE_angle
-            energy(box_i)%dihedral = energy(box_i)%dihedral + dE_dihed
-            energy(box_i)%improper = energy(box_i)%improper + dE_improper
-            energy(box_i)%intra_vdw = energy(box_i)%intra_vdw + dE_intra_vdw
-            energy(box_i)%intra_q = energy(box_i)%intra_q + dE_intra_qq
-            energy(box_i)%lrc = E_lrc_box(box_i)
-
-            energy(box_j)%total = energy(box_j)%total + dE_box(box_j)
-            energy(box_j)%inter = energy(box_j)%inter + dE_box(box_j)
-            energy(box_j)%inter_vdw = energy(box_j)%inter_vdw + E_vdw_mol_new(box_j) - E_vdw_mol_old(box_j)
-            energy(box_j)%inter_q = energy(box_j)%inter_q + E_qq_mol_new(box_j) - E_qq_mol_old(box_j)
-            !Intra energies are not needed for the acceptance rule, but they must be attributed to the correct box now
-            energy(box_j)%intra = energy(box_j)%intra - dE_bond - dE_angle - dE_dihed - dE_improper
-            energy(box_j)%bond = energy(box_j)%bond - dE_bond
-            energy(box_j)%angle = energy(box_j)%angle - dE_angle
-            energy(box_j)%dihedral = energy(box_j)%dihedral - dE_dihed
-            energy(box_j)%improper = energy(box_j)%improper - dE_improper
-            energy(box_j)%intra_vdw = energy(box_j)%intra_vdw - dE_intra_vdw
-            energy(box_j)%intra_q = energy(box_j)%intra_q - dE_intra_qq
-            energy(box_j)%lrc = E_lrc_box(box_j)
+!         IF(int_charge_sum_style(box_i) == charge_ewald .AND. (has_charge(is) .OR. has_charge(js))) THEN
+!            energy(box_i)%reciprocal = E_reciprocal_move_i
+!         END IF
 !
-!            IF(int_charge_sum_style(box_i) == charge_ewald .AND. (has_charge(is) .OR. has_charge(js))) THEN
-!               energy(box_i)%reciprocal = E_reciprocal_move_i
-!            END IF
+!         IF(int_charge_sum_style(box_j) == charge_ewald .AND. (has_charge(is) .OR. has_charge(js))) THEN
+!            energy(box_j)%reciprocal = E_reciprocal_move_j
+!         END IF
 !
-!            IF(int_charge_sum_style(box_j) == charge_ewald .AND. (has_charge(is) .OR. has_charge(js))) THEN
-!               energy(box_j)%reciprocal = E_reciprocal_move_j
-!            END IF
-!
-         END IF
 !
          IF (l_pair_nrg) DEALLOCATE(pair_vdw_temp,pair_qq_temp)
 !         IF (ALLOCATED(cos_mol_old_i)) DEALLOCATE(cos_mol_old_i)
