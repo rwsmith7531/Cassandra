@@ -7,7 +7,7 @@ import pandas as pd
 
 
 def lammpstrjconvert_np(lammpstrjFilename,n_list,fstr="%f"):
-    full_fstr = 'X '+fstr+' '+fstr
+    full_fstr = 'X '+fstr+' '+fstr+' '+fstr
     lfnlen = len(lammpstrjFilename)
 
     if lammpstrjFilename.find(".lammpstrj") == (lfnlen-10):
