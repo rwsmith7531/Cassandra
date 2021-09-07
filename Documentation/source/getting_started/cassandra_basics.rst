@@ -191,7 +191,7 @@ file name suffix. The following are generated:
   this file to compute thermodynamic averages.
 
 * **Widom property file** (``*.spec#.wprp`` or ``*.spec#.box#.wprp``):  This 
-  file lists the average ``widom_var`` (defined in Eq. :ref:`eq:widom_var` 
+  file lists the average ``widom_var`` (defined in Eq. :eq:`eq:widom_var` 
   in :ref:`sec:widom_insert`) for each system configuration (step) in which 
   Widom insertions are performed for a given species and a given box.  The 
   species number is the ``#`` in ``.spec#`` in the file extension.  For a 
