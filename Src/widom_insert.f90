@@ -261,7 +261,7 @@ SUBROUTINE Widom_Insert(is,ibox,widom_sum)
           ELSE
                   overlap_counter(is,ibox) = overlap_counter(is,ibox) + 1_INT64
           END IF
-          IF (i_widom % subinterval == 0) WRITE(wprop2_file_unit(is,ibox), "(E30.22)", ADVANCE="NO") widom_sum/i_widom
+          IF (MOD(i_widom, subinterval) == 0) WRITE(wprop2_file_unit(is,ibox), "(E30.22)", ADVANCE="NO") widom_sum/i_widom
   END DO
   WRITE(wprop2_file_unit(is,ibox),*)
 
