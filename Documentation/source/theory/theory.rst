@@ -1326,7 +1326,7 @@ denotes the generalized coordinates of only the inserted molecule.
 .. math::
         :label: eq:Z_insertion
 
-        frac{Z(N+1,V,T)}{Z(N,V,T)} =
+        \frac{Z(N+1,V,T)}{Z(N,V,T)} =
             \frac{\int \left(\int e^{-\beta \Delta U}d\mathbf{q}_{N+1}\right) e^{-\beta U(\mathbf{q}^N)} d\mathbf{q}^N}{\int e^{-\beta U(\mathbf{q}^N)} d\mathbf{q}^N} =
                 \left\langle{\int e^{-\beta \Delta U} d\mathbf{q}_{N+1}}\right\rangle_N
 
