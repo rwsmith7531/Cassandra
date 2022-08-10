@@ -1710,7 +1710,7 @@ CONTAINS
 
 
               IF (int_charge_sum_style(ibox) == charge_ewald .AND. &
-                      ( .NOT. igas_flag) ) THEN
+                      ( .NOT. (igas_flag .OR. cbmc_flag)) ) THEN
                    ! Real space Ewald part
                    CALL Compute_AtomPair_Ewald_Real(ia,im,is,qi,ja,jm,js,qj, &
                         rijsq,E_intra_qq,E_inter_qq,ibox)
@@ -1722,7 +1722,7 @@ CONTAINS
               ELSEIF (int_charge_sum_style(ibox) == charge_dsf) THEN
                    CALL Compute_AtomPair_DSF_Energy(ia,im,is,qi,ja,jm,js,qj,rijsq,E_intra_qq,E_inter_qq,ibox)
 
-              ELSEIF (int_charge_sum_style(ibox) == charge_cut .OR. &
+              ELSEIF (int_charge_sum_style(ibox) == charge_cut .OR. cbmc_flag .OR. &
                   int_charge_sum_style(ibox) == charge_minimum .OR. igas_flag) THEN
 
                    Eij_qq = charge_factor*(qi*qj)/SQRT(rijsq)
