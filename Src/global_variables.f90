@@ -836,7 +836,7 @@ REAL(DP), ALLOCATABLE, DIMENSION(:) :: dsf_factor1, dsf_factor2
   ! At time of writing, compatibility_mode also results in printing values when the new implementation (with some behaviors modified
   ! to try to emulate old results better)
   ! still results in a different dihedral trial being chosen than with the more extensive emulation of the old implementation.
-  LOGICAL, PARAMETER :: l_vectorized = .TRUE., compatibility_mode = .TRUE.
+  LOGICAL, PARAMETER :: l_vectorized = .TRUE., compatibility_mode = .FALSE.
 
 END MODULE Global_Variables
 
