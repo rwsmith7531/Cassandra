@@ -520,6 +520,11 @@ SUBROUTINE Widom_Insert(is,ibox,widom_sum,t_cpu, n_overlaps)
                                 thread_changefactor = thread_changefactor * 2
                                 Eij_ind = INT(Eij_max * thread_Eij_factor)
                           END DO
+                          IF (Eij_ind < 1) THEN
+                                  WRITE(*,*) "CRITICAL ERROR! Out-of-bounds Eij_ind = ", Eij_ind
+                                  WRITE(*,*) "Eij_max = ", Eij_max
+                                  WRITE(*,*) "thread_Eij_factor = ", thread_Eij_factor
+                          END IF
                           frame_w_max(Eij_ind) = MAX(frame_w_max(Eij_ind), widom_var_exp)
                           frame_Eij_w_sum(Eij_ind) = frame_Eij_w_sum(Eij_ind) + widom_var_exp
                           Eij_freq(Eij_ind) = Eij_freq(Eij_ind) + 1
